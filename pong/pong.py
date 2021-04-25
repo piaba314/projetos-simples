@@ -148,12 +148,15 @@ class TelaDeJogo:
     def desenha(self, tela):
         self.jogador1.desenha(tela)
         self.jogador2.desenha(tela)
-        
         tela.blit(self.rede_surface, self.rede_rect)
-        
         self.bola.desenha(tela)
-        
         self.desenha_pontuacao(tela)
+        
+        # verifica se alguem ganhou
+        # essa verificação precisa ser feita aqui para capturarmos o plano de fundo
+        # para a tela de fim de jogo
+        if self.jogador1.pontos >= 7 or self.jogador2.pontos >= 7:
+            self.gerenciador.va_para(TelaDeFimDeJogo())
     
     def atualiza(self, delta):
         self.jogador1.atualiza(delta)
@@ -170,15 +173,11 @@ class TelaDeJogo:
         if self.bola.rect.centerx < 0:
             self.jogador2.pontos += 1
             self.bola.reinicia_bola(VELOCIDADE_INICIAL_DA_BOLA, 0)
-        
-        # verifica se alguem ganhou
-        if self.jogador1.pontos >= 7 or self.jogador2.pontos >= 7:
-            self.gerenciador.va_para(TelaDeFimDeJogo())
                       
     def processa_eventos(self, evento):
         self.jogador1.controla(evento)
         self.jogador2.controla(evento)
-    
+        
     def verifica_colisao_bola_jogador(self):
         for jogador in [self.jogador1, self.jogador2]:
             if self.bola.rect.colliderect(jogador.rect):
@@ -213,7 +212,7 @@ class TelaDeJogo:
         tela.blit(pontos_surface, pontos_rect)
 
 class TelaDeFimDeJogo:
-    def __init__(self):  
+    def __init__(self):
         fonte = pygame.font.SysFont("arial", 80)
         self.titulo_surface = fonte.render("Fim de Jogo!", True, BRANCO)
         self.titulo_rect = self.titulo_surface.get_rect()
@@ -226,8 +225,11 @@ class TelaDeFimDeJogo:
         self.subtitulo_rect.top = self.titulo_rect.bottom + 10
         self.cronometro_subtitulo = 0
         self.tempo_de_animacao_subtitulo = 2
+        
     
     def desenha(self, tela):
+        tela.blit(self.plano_de_fundo, (0, 0))
+        
         tela.blit(self.titulo_surface, self.titulo_rect)
         
         self.subtitulo_surface_copia = self.subtitulo_surface.copy()
@@ -249,50 +251,57 @@ class TelaDeFimDeJogo:
                 self.gerenciador.va_para(TelaDeJogo())
     
 class GerenciadorDeTelas:
-    def __init__(self):
+    def __init__(self, jogo):
+        self.jogo = jogo
         self.va_para(TelaInicial())
+        
         
     def va_para(self, tela):
         self.tela_atual = tela
         self.tela_atual.gerenciador = self
-    
-# função principal ------------------------------------------------------------
-def main():
-    # cria tela, coloca título e cria relogio
-    tela = pygame.display.set_mode((LARGURA_DA_TELA, ALTURA_DA_TELA),pygame.DOUBLEBUF)
-    pygame.display.set_caption("Copia do Pong")
-    relogio = pygame.time.Clock()
-    
-    # gerenciador de telas
-    g = GerenciadorDeTelas()
-    
-    # laço principal de jogo
-    rodando = 1
-    while rodando:
-        # limita o FPS conta o tempo desde um último frame
-        delta = relogio.tick(FPS)/1000
+        self.tela_atual.plano_de_fundo = self.jogo.tela.copy()
         
-        # processa eventos do mouse e do teclado
-        for evento in pygame.event.get():
-            # fecha se usuario clicar no x
-            if evento.type == pygame.QUIT:
-                rodando = 0
+    
+# classe principal ------------------------------------------------------------
+class Jogo:
+    def __init__(self):
+        # cria tela, coloca título e cria relogio
+        self.tela = pygame.display.set_mode((LARGURA_DA_TELA, ALTURA_DA_TELA),pygame.DOUBLEBUF)
+        pygame.display.set_caption("Copia do Pong")
+        self.relogio = pygame.time.Clock()
+        
+        # gerenciador de telas
+        self.g = GerenciadorDeTelas(self)
+        
+        # laço principal de jogo
+        self.rodando = 1
+    
+    def main(self):
+        while self.rodando:
+            # limita o FPS conta o tempo desde um último frame
+            delta = self.relogio.tick(FPS)/1000
             
-            g.tela_atual.processa_eventos(evento)
+            # processa eventos do mouse e do teclado
+            for evento in pygame.event.get():
+                # fecha se usuario clicar no x
+                if evento.type == pygame.QUIT:
+                    self.rodando = 0
+                
+                self.g.tela_atual.processa_eventos(evento)
+            
+            # atualiza mundo do jogo
+            self.g.tela_atual.atualiza(delta)
+            
+            # desenha alguma coisa
+            self.tela.fill(PRETO)
+            
+            self.g.tela_atual.desenha(self.tela)
+            
+            # atualiza a janela
+            pygame.display.update()
         
-        # atualiza mundo do jogo
-        g.tela_atual.atualiza(delta)
-        
-        # desenha alguma coisa
-        tela.fill(PRETO)
-        
-        g.tela_atual.desenha(tela)
-        
-        # atualiza a janela
-        pygame.display.update()
-    
-    # encerra o jogo
-    pygame.quit()
+        # encerra o jogo
+        pygame.quit()
 
 if __name__ == "__main__":
-    main()   
+    Jogo().main()   
