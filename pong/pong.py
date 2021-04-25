@@ -145,6 +145,8 @@ class TelaDeJogo:
         for i in range(0, ALTURA_DA_TELA//15):
             pygame.draw.rect(self.rede_surface, BRANCO, (0, 15*i, 5, 10))
         
+        self.pausado = False
+        
     def desenha(self, tela):
         self.jogador1.desenha(tela)
         self.jogador2.desenha(tela)
@@ -159,24 +161,29 @@ class TelaDeJogo:
             self.gerenciador.va_para(TelaDeFimDeJogo())
     
     def atualiza(self, delta):
-        self.jogador1.atualiza(delta)
-        self.jogador2.atualiza(delta)
-        self.bola.atualiza(delta)
-        
-        # verifica e resolve colisão entre bola e jogadores
-        self.verifica_colisao_bola_jogador()
-        
-        # verifica se algum jogador marcou ponto
-        if self.bola.rect.centerx > LARGURA_DA_TELA:
-            self.jogador1.pontos += 1
-            self.bola.reinicia_bola(-VELOCIDADE_INICIAL_DA_BOLA, 0)
-        if self.bola.rect.centerx < 0:
-            self.jogador2.pontos += 1
-            self.bola.reinicia_bola(VELOCIDADE_INICIAL_DA_BOLA, 0)
+        if not self.pausado:
+            self.jogador1.atualiza(delta)
+            self.jogador2.atualiza(delta)
+            self.bola.atualiza(delta)
+
+            # verifica e resolve colisão entre bola e jogadores
+            self.verifica_colisao_bola_jogador()
+
+            # verifica se algum jogador marcou ponto
+            if self.bola.rect.centerx > LARGURA_DA_TELA:
+                self.jogador1.pontos += 1
+                self.bola.reinicia_bola(-VELOCIDADE_INICIAL_DA_BOLA, 0)
+            if self.bola.rect.centerx < 0:
+                self.jogador2.pontos += 1
+                self.bola.reinicia_bola(VELOCIDADE_INICIAL_DA_BOLA, 0)
                       
     def processa_eventos(self, evento):
         self.jogador1.controla(evento)
         self.jogador2.controla(evento)
+        
+        # pausa ou retorna o jogo pressionando [Enter]
+        if evento.type == pygame.KEYDOWN and evento.key == pygame.K_RETURN:
+            self.pausado = not self.pausado
         
     def verifica_colisao_bola_jogador(self):
         for jogador in [self.jogador1, self.jogador2]:
