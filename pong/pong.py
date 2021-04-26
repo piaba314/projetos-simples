@@ -342,11 +342,10 @@ class Jogo:
         
         # gerenciador de telas
         self.tela_atual = TelaInicial(self)
-        
-        # laço principal de jogo
-        self.rodando = 1
     
     def main(self):
+        # laço principal de jogo
+        self.rodando = 1
         while self.rodando:
             # limita o FPS conta o tempo desde um último frame
             delta = self.relogio.tick(FPS)/1000
