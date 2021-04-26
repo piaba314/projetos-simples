@@ -81,10 +81,52 @@ class Bola:
         self.rect.center = LARGURA_DA_TELA//2, ALTURA_DA_TELA//2
         self.xvel = xvel
         self.yvel = yvel
+
+class Cronometro:
+    def __init__(self, tempo, x, y, tamanho_da_fonte):
+        self.tempo = tempo
+        self.conta_segundos = 0
+        self.encerrado = False
+        
+        self.x = x
+        self.y = y
+        self.fonte = pygame.font.SysFont("arial", tamanho_da_fonte)
+    
+    def atualiza(self, delta):
+        if not self.encerrado:
+            self.conta_segundos += delta
+            if self.conta_segundos >= 1:
+                #print(self.tempo)
+                self.tempo -= 1
+                self.conta_segundos = 0
+            if self.tempo <= -1:
+                #print("Vai!")
+                self.encerrado = True
+    
+    def desenha(self, tela):
+        if not self.encerrado:
+            if self.tempo > 0:
+                surface = self.fonte.render(str(self.tempo), True, BRANCO)
+            else:
+                surface = self.fonte.render("Vai!", True, BRANCO)
+            rect = surface.get_rect()
+            
+            alfa = self.conta_segundos
+            surface.set_alpha((1-alfa)*255 + alfa*0)
+            
+            nova_largura = int((1-alfa)*rect.width + alfa*2*rect.width)
+            nova_altura = int((1-alfa)*rect.height + alfa*2*rect.height)
+            surface_copia = pygame.transform.smoothscale(surface, (nova_largura, nova_altura))
+            rect_copia= surface_copia.get_rect()
+            
+            rect_copia.center = self.x, self.y
+            tela.blit(surface_copia, rect_copia)
                    
 # telas do jogo ---------------------------------------------------------------
 class TelaInicial:
-    def __init__(self):
+    def __init__(self, pai):
+        self.pai = pai
+        
         fonte = pygame.font.SysFont("arial", 120)
         self.titulo_surface = fonte.render("Pong", True, BRANCO)
         self.titulo_rect = self.titulo_surface.get_rect()
@@ -129,10 +171,12 @@ class TelaInicial:
     def processa_eventos(self, evento):
         if evento.type == pygame.KEYDOWN:
             if evento.key == pygame.K_RETURN:
-                self.gerenciador.va_para(TelaDeJogo())
+                self.pai.tela_atual = TelaDeJogo(self.pai)
             
 class TelaDeJogo:
-    def __init__(self):
+    def __init__(self, pai):
+        self.pai = pai
+        
         self.jogador1 = Jogador(LARGURA_DO_JOGADOR//2 + 20, ALTURA_DA_TELA//2, {"cima": pygame.K_w, "baixo": pygame.K_s})
         self.jogador2 = Jogador(LARGURA_DA_TELA - 20 - LARGURA_DO_JOGADOR//2, ALTURA_DA_TELA//2, {"cima": pygame.K_UP, "baixo": pygame.K_DOWN})
         self.bola = Bola()
@@ -144,8 +188,12 @@ class TelaDeJogo:
         self.rede_rect.midtop = (LARGURA_DA_TELA//2, 0)
         for i in range(0, ALTURA_DA_TELA//15):
             pygame.draw.rect(self.rede_surface, BRANCO, (0, 15*i, 5, 10))
-        
+            
         self.pausado = False
+        
+        self.menu_de_pausa = MenuDePausa()
+        
+        self.cronometro = Cronometro(3, LARGURA_DA_TELA//2, ALTURA_DA_TELA//2, 100)
         
     def desenha(self, tela):
         self.jogador1.desenha(tela)
@@ -154,21 +202,25 @@ class TelaDeJogo:
         self.bola.desenha(tela)
         self.desenha_pontuacao(tela)
         
-        # verifica se alguem ganhou
-        # essa verificação precisa ser feita aqui para capturarmos o plano de fundo
-        # para a tela de fim de jogo
+        if self.pausado:
+            self.menu_de_pausa.desenha(tela)
+        
+        # verifica se alguém ganhou
         if self.jogador1.pontos >= 7 or self.jogador2.pontos >= 7:
-            self.gerenciador.va_para(TelaDeFimDeJogo())
-    
+            self.pai.tela_atual = TelaDeFimDeJogo(self.pai)
+        
+        if not self.cronometro.encerrado:
+            self.cronometro.desenha(tela)
+        
     def atualiza(self, delta):
-        if not self.pausado:
+        if not self.pausado and self.cronometro.encerrado:            
             self.jogador1.atualiza(delta)
             self.jogador2.atualiza(delta)
             self.bola.atualiza(delta)
-
+            
             # verifica e resolve colisão entre bola e jogadores
             self.verifica_colisao_bola_jogador()
-
+            
             # verifica se algum jogador marcou ponto
             if self.bola.rect.centerx > LARGURA_DA_TELA:
                 self.jogador1.pontos += 1
@@ -176,12 +228,15 @@ class TelaDeJogo:
             if self.bola.rect.centerx < 0:
                 self.jogador2.pontos += 1
                 self.bola.reinicia_bola(VELOCIDADE_INICIAL_DA_BOLA, 0)
-                      
+        
+        if not self.cronometro.encerrado:
+            self.cronometro.atualiza(delta)
+        
     def processa_eventos(self, evento):
         self.jogador1.controla(evento)
         self.jogador2.controla(evento)
         
-        # pausa ou retorna o jogo pressionando [Enter]
+        # pausa ou retorna ao jogo pressionando [Enter]
         if evento.type == pygame.KEYDOWN and evento.key == pygame.K_RETURN:
             self.pausado = not self.pausado
         
@@ -219,7 +274,11 @@ class TelaDeJogo:
         tela.blit(pontos_surface, pontos_rect)
 
 class TelaDeFimDeJogo:
-    def __init__(self):
+    def __init__(self, pai):
+        self.pai = pai
+        
+        self.plano_de_fundo = self.pai.tela.copy()
+        
         fonte = pygame.font.SysFont("arial", 80)
         self.titulo_surface = fonte.render("Fim de Jogo!", True, BRANCO)
         self.titulo_rect = self.titulo_surface.get_rect()
@@ -255,19 +314,23 @@ class TelaDeFimDeJogo:
     def processa_eventos(self, evento):
         if evento.type == pygame.KEYDOWN:
             if evento.key == pygame.K_RETURN:
-                self.gerenciador.va_para(TelaDeJogo())
+                self.pai.tela_atual = TelaDeJogo(self.pai)
+
+class MenuDePausa:
+    def __init__(self):
+        fonte = pygame.font.SysFont("arial", 30)
+        self.surface = fonte.render("Pausado.", True, BRANCO)
+        self.rect = self.surface.get_rect()
+        self.rect.center = LARGURA_DA_TELA//2, ALTURA_DA_TELA//2
+        
+    def atualiza(self, delta):
+        pass
     
-class GerenciadorDeTelas:
-    def __init__(self, jogo):
-        self.jogo = jogo
-        self.va_para(TelaInicial())
+    def desenha(self, tela):
+        tela.blit(self.surface, self.rect)
         
-        
-    def va_para(self, tela):
-        self.tela_atual = tela
-        self.tela_atual.gerenciador = self
-        self.tela_atual.plano_de_fundo = self.jogo.tela.copy()
-        
+    def processa_eventos(self, evento):
+        pass
     
 # classe principal ------------------------------------------------------------
 class Jogo:
@@ -278,11 +341,12 @@ class Jogo:
         self.relogio = pygame.time.Clock()
         
         # gerenciador de telas
-        self.g = GerenciadorDeTelas(self)
+        self.tela_atual = TelaInicial(self)
+        
+        # laço principal de jogo
+        self.rodando = 1
     
     def main(self):
-        # laço principal do jogo
-        self.rodando = 1
         while self.rodando:
             # limita o FPS conta o tempo desde um último frame
             delta = self.relogio.tick(FPS)/1000
@@ -293,15 +357,14 @@ class Jogo:
                 if evento.type == pygame.QUIT:
                     self.rodando = 0
                 
-                self.g.tela_atual.processa_eventos(evento)
+                self.tela_atual.processa_eventos(evento)
             
             # atualiza mundo do jogo
-            self.g.tela_atual.atualiza(delta)
+            self.tela_atual.atualiza(delta)
             
             # desenha alguma coisa
             self.tela.fill(PRETO)
-            
-            self.g.tela_atual.desenha(self.tela)
+            self.tela_atual.desenha(self.tela)
             
             # atualiza a janela
             pygame.display.update()
